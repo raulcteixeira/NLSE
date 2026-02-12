@@ -679,3 +679,4 @@ class NLSE:
         ax[2].set_ylabel(r"$k_y$ ($mm^{-1}$)")
         fig.colorbar(im2, ax=ax[2], shrink=0.6, label="Intensity (a.u.)")
         plt.show()
+        plt.savefig("img/output.png",dpi = 300)
