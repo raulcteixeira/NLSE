@@ -618,12 +618,20 @@ class NLSE:
             self.plot_field(A, z)
         return A
 
-    def plot_field(self, A_plot: np.ndarray, z: float) -> None:
-        """Plot a field for monitoring.
+    def plot_field(
+        self,
+        A_plot: np.ndarray,
+        z: float,
+        save_file: bool = False,
+        file_name: str = "output.png" 
+        ) -> None:
+        """Plot a field for monitoring and save an image if wanted.
 
         Args:
             A_plot (np.ndarray): Field to plot.
             z (float): Propagation distance.
+            save_file: true if saving image.
+            file_name: name of file for saving image.
         """
         # if array is multi-dimensional, drop dims until the shape is 2D
         if A_plot.ndim > 2:
@@ -679,4 +687,5 @@ class NLSE:
         ax[2].set_ylabel(r"$k_y$ ($mm^{-1}$)")
         fig.colorbar(im2, ax=ax[2], shrink=0.6, label="Intensity (a.u.)")
         plt.show()
-        plt.savefig("img/output.png",dpi = 300)
+        if save_file:
+            plt.savefig(file_name,dpi = 300)
