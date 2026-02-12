@@ -38,7 +38,7 @@ def main():
     #    PRECISION_COMPLEX
     #)
     A_plot = simu.out_field(E_0, L, verbose=True, plot=True, precision="single")
-    simu.plot_field(A_plot,L)
+    simu.plot_field(A_plot,L,True,"img/Output2.png")
     #Plot the pot_field
 
     # if A_plot.ndim > 2:
