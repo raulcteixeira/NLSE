@@ -71,10 +71,17 @@ def main():
     #A_plot = simu.out_field(E_0, L, verbose=True, plot=True, precision="single")
 
     cuts_1D = abs(E_samples[:,int(simu.NX/2),:])** 2 * 1e-4 * c / 2 * epsilon_0
+    center_cut = E_samples[:,int(simu.NX/2),int(simu.NY/2)]
+    center_cut_fft = np.abs(np.fft.fftshift(np.fft.fft(center_cut)))
+    fft_freqs = np.fft.fftshift(np.fft.fftfreq(N_samples+1,save_every))
 
     plt.figure()
     plt.imshow(cuts_1D)
     plt.savefig("img/1Dcut.png")
+
+    plt.figure()
+    plt.plot(center_cut_fft)
+    plt.savefig("img/temporal_fft.png")
 
     plt.figure()
     #save the plot_field
