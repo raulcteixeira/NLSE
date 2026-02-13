@@ -568,15 +568,15 @@ class NLSE:
         if type(self.delta_z) is complex:
             print("Warning: imaginary time evolution !")
         while abs(z_prop) < z:
-            if z > self.L:
+            if z_prop > self.L:
                 self.n2 = 0
             self.split_step(A, A_sq, V, self.propagator, self.plans, precision)
             if callback is not None:
                 if isinstance(callback, Callable):
-                    callback(self, A, z, i, *callback_args)
+                    callback(self, A, z_prop, i, *callback_args)
                 elif isinstance(callback, list) and isinstance(callback[0], Callable):
                     for c, ca in zip(callback, callback_args):
-                        c(self, A, z, i, *ca)
+                        c(self, A, z_prop, i, *ca)
                 else:
                     raise ValueError(
                         "callbacks should be a callable or a list of callables"
