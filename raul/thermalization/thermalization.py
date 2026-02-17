@@ -13,7 +13,7 @@ n2 = -1.6e-9
 k_max = 2*np.pi*0.5e3 # maximum k vector of the beam profile
 #waist = 2.23e-3
 window = 8 * 2*np.pi/k_max
-puiss = 1.05
+puiss = 1.0
 Isat = 10e4  # saturation intensity in W/m^2
 L = 500e-3
 alpha = 2
@@ -76,7 +76,7 @@ def main():
             i (int): The main loop index
             E (np.ndarray): The array of samples
         """
-        if i % save_every == 0:
+        if (i+1) % save_every == 0:
             E_samples[i//save_every+1] = A.get()
             z_samples[i//save_every+1] = z
  
@@ -117,13 +117,14 @@ def main():
     k_max_plot = 200*k_max
     plot_index = int(k_max_plot/k_step)
     plt.figure()
-    for ii in np.arange(N_samples):
-        plt.loglog(k_r[0:plot_index],radial_mean_fft[ii,0:plot_index])
+    for ii in np.arange(N_samples+1):
+        plt.loglog(k_r[0:plot_index],radial_mean_fft[ii,0:plot_index],label=(str("%.2f" % z_samples[ii])+" m"))
 
-    exponent = -8
-    in_min = 20
-    in_max = 100
-    plt.loglog(k_r[in_min:in_max],(k_r[in_min:in_max]/k_max/10)**exponent)
+    #exponent = -8
+    #in_min = 20
+    #in_max = 100
+    #plt.loglog(k_r[in_min:in_max],(k_r[in_min:in_max]/k_max/10)**exponent)
+    plt.legend()
     plt.savefig("img/azimuthal_fft_out.png")
 
     plt.figure()
@@ -132,8 +133,9 @@ def main():
 
 
     plt.figure()
-    for ii in np.arange(N_samples):
-        plt.semilogy(k_r,radial_mean_fft[ii])
+    for ii in np.arange(N_samples+1):
+        plt.semilogy(k_r,radial_mean_fft[ii],label=(str("%.2f" % z_samples[ii])+" m"))
+    plt.legend()
     plt.savefig("img/azimuthal_fft_out_1.png")
 
 if __name__ == "__main__":
