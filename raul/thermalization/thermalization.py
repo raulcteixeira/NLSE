@@ -9,7 +9,7 @@ PRECISION_REAL = np.float32
 
 
 N = 2048
-n2 = -6e-10
+n2 = -8e-10
 k_max = 2*np.pi*2e3 # maximum k vector of the beam profile
 #waist = 2.23e-3
 window = 8 * 2*np.pi/k_max
@@ -34,7 +34,7 @@ def main():
         Isat=Isat,
         backend="GPU",
     )
-    simu.delta_z = 0.4e-4
+    simu.delta_z = 0.1e-4
 
     # parameters for callback
     N_samples = 10
