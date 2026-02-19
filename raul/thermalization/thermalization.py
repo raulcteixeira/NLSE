@@ -9,7 +9,7 @@ PRECISION_REAL = np.float32
 
 
 N = 2048
-n2 = -4e-10
+n2 = -6e-10
 k_max = 2*np.pi*2e3 # maximum k vector of the beam profile
 #waist = 2.23e-3
 window = 8 * 2*np.pi/k_max
@@ -37,13 +37,16 @@ def main():
     simu.delta_z = 0.4e-4
 
     # parameters for callback
-    N_samples = 20
+    N_samples = 10
     z_samples = np.zeros(N_samples+1) # +1 to account for the 0th step
     z_samples[0] = 0
     E_samples = np.zeros((N_samples+1, N, N), dtype=np.complex64)
 
     #vector for keeping track of state norm
     norm_state = np.zeros(N_samples + 1)
+
+    #array for average of final state fft
+    fft_average = np.zeros([simu.NY,simu.NX])
 
     N_steps = int(round(L/simu.delta_z))
     save_every = N_steps//N_samples
@@ -107,6 +110,7 @@ def main():
         norm_state = norm_state + np.sum(np.sum(amp_E_sqr,axis=2),axis=1)
     
         E_fft_abs = abs(E_fft)
+        fft_average = fft_average + E_fft_abs[N_samples]**2
 
         # Sum values in each radial bin
         for ii in np.arange(N_samples+1):
@@ -117,6 +121,7 @@ def main():
 
     radial_mean_fft = radial_mean_fft/N_real
     norm_state = norm_state/norm_state[0]
+    fft_average = fft_average/N_real
 
     #k_r = np.arange(len(nr))*k_step
     k_max_plot = 200*k_max
@@ -128,9 +133,13 @@ def main():
         plt.loglog(k_vec[0:plot_index],radial_mean_fft[ii,0:plot_index],label=(str("%.2f" % z_samples[ii])+" m"))
 
     exponent = -3
+    in_min = 8
+    in_max = 40
+    plt.loglog(k_vec[in_min:in_max],1e29*(k_vec[in_min:in_max])**exponent,linestyle='--',label = r'1/k$^3$')
+    exponent = -2
     in_min = 20
     in_max = 100
-    plt.loglog(k_vec[in_min:in_max],1e28*(k_vec[in_min:in_max])**exponent)
+    plt.loglog(k_vec[in_min:in_max],1e24*(k_vec[in_min:in_max])**exponent,linestyle='--',label = r'1/k$^2$')
     plt.legend(loc = 'right', fontsize = 'small')
     fft_max = max(radial_mean_fft[0])
     plt.ylim([1e-7*fft_max,2*fft_max])
@@ -140,24 +149,34 @@ def main():
     plt.savefig("img/azimuthal_fft_out.png")
 
     plt.figure()
-    plt.imshow(abs(E_0_fft[zero_index-100:zero_index+100,zero_index-100:zero_index+100]))
-    plt.title("Abs of FFT of input beam")
+    plt.imshow(abs(E_0_fft[zero_index-100:zero_index+100,zero_index-100:zero_index+100])**2)
+    plt.title("zoom of n(k) vectoriel of input beam")
     plt.savefig("img/fft_input_beam.png")
 
     plt.figure()
-    plt.imshow(abs(E_0))
-    plt.title("Intensity of input beam")
+    plt.imshow(abs(E_0)**2)
+    plt.title("Intensity of input beam (1 realization)")
     plt.savefig("img/input_beam.png")
 
     plt.figure()
-    plt.imshow(abs(E_samples[10]))
-    plt.title("Intensity of output beam")
+    plt.imshow(np.angle(E_0))
+    plt.title("Phase of input beam (1 realization)")
+    plt.savefig("img/phase_input_beam.png")
+
+    plt.figure()
+    plt.imshow(abs(E_samples[N_samples])**2)
+    plt.title("Intensity of output beam (1 realization)")
     plt.savefig("img/output_beam.png")
+
+    plt.figure()
+    plt.imshow(np.angle(E_samples[N_samples]))
+    plt.title("Phase of output beam (1 realization)")
+    plt.savefig("img/output_beam_phase.png")
     
     plt.figure()
     E_out_fft = E_fft[N_samples]
-    plt.imshow(abs(E_out_fft[zero_index-100:zero_index+100,zero_index-100:zero_index+100]))
-    plt.title("Abs of FFT of output beam")
+    plt.imshow(fft_average[zero_index-100:zero_index+100,zero_index-100:zero_index+100])
+    plt.title("zoom of n(k) vectoriel of output beam (averaged)")
     plt.savefig("img/fft_out_beam.png")
 
     plt.figure()
