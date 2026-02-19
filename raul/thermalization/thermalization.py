@@ -9,13 +9,13 @@ PRECISION_REAL = np.float32
 
 
 N = 2048
-n2 = -8e-10
+n2 = -4e-10
 k_max = 2*np.pi*2e3 # maximum k vector of the beam profile
 #waist = 2.23e-3
 window = 8 * 2*np.pi/k_max
 puiss = 1.0
 Isat = 1e8  # saturation intensity in W/m^2
-L = 100e-3
+L = 400e-3
 alpha = 2
 
 # averaging over several realizations
@@ -34,13 +34,16 @@ def main():
         Isat=Isat,
         backend="GPU",
     )
-    simu.delta_z = 0.1e-4
+    simu.delta_z = 0.4e-4
 
     # parameters for callback
-    N_samples = 10
+    N_samples = 20
     z_samples = np.zeros(N_samples+1) # +1 to account for the 0th step
     z_samples[0] = 0
     E_samples = np.zeros((N_samples+1, N, N), dtype=np.complex64)
+
+    #vector for keeping track of state norm
+    norm_state = np.zeros(N_samples + 1)
 
     N_steps = int(round(L/simu.delta_z))
     save_every = N_steps//N_samples
@@ -67,23 +70,13 @@ def main():
     kY = kX
     kXX,kYY = np.meshgrid(kX,kY)
 
-    # vector to help in radial average of k's
+    # vectors to help in radial average of n(k)
     y, x = np.indices(kXX.shape)
     kk = np.sqrt((x - zero_index)**2 + (y - zero_index)**2)
     kk = kk.astype(np.int32)  # bin by integer radius
     nk = np.bincount(kk.ravel())
     k_size = nk.shape[0]
-
     k_vec = np.linspace(k_step,(k_size-1)*k_step,k_size)
-
-    #vector to keep averaged n(k)
-    radial_mean_fft = np.zeros([N_samples+1,nk.shape[0]])
-
-    # vector of modulus of r
-    y, x = np.indices(kXX.shape)
-    kk = np.sqrt((x - zero_index)**2 + (y - zero_index)**2)
-    kk = kk.astype(np.int32)  # bin by integer radius
-    nk = np.bincount(kk.ravel())
 
     #vector to keep averaged n(k)
     radial_mean_fft = np.zeros([N_samples+1,nk.shape[0]])
@@ -104,11 +97,14 @@ def main():
     
         #A_plot = simu.out_field(E_0, L, verbose=True, plot=True, precision="single")
 
-        #obtain frequency content of fields
+        #obtain frequency content and norm of fields
         E_fft = np.zeros([N_samples+1,A_plot.shape[0],A_plot.shape[1]])
         E_fft[:] = np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(E_samples[:]))).astype(
             PRECISION_COMPLEX
         )
+
+        amp_E_sqr = abs(E_samples)**2
+        norm_state = norm_state + np.sum(np.sum(amp_E_sqr,axis=2),axis=1)
     
         E_fft_abs = abs(E_fft)
 
@@ -120,6 +116,7 @@ def main():
             radial_mean_fft[ii] = tbin / nk + radial_mean_fft[ii]
 
     radial_mean_fft = radial_mean_fft/N_real
+    norm_state = norm_state/norm_state[0]
 
     #k_r = np.arange(len(nr))*k_step
     k_max_plot = 200*k_max
@@ -134,35 +131,50 @@ def main():
     in_min = 20
     in_max = 100
     plt.loglog(k_vec[in_min:in_max],1e28*(k_vec[in_min:in_max])**exponent)
-    plt.legend()
+    plt.legend(loc = 'right', fontsize = 'small')
     fft_max = max(radial_mean_fft[0])
     plt.ylim([1e-7*fft_max,2*fft_max])
+    plt.title("n(k) versus k")
     plt.ylabel("n(k)")
-    plt.xlabel("k/(2"+chr(960)+")")
+    plt.xlabel("k/(2$\pi$) (m$^{-1}$)")
     plt.savefig("img/azimuthal_fft_out.png")
 
     plt.figure()
     plt.imshow(abs(E_0_fft[zero_index-100:zero_index+100,zero_index-100:zero_index+100]))
+    plt.title("Abs of FFT of input beam")
     plt.savefig("img/fft_input_beam.png")
 
     plt.figure()
     plt.imshow(abs(E_0))
+    plt.title("Intensity of input beam")
     plt.savefig("img/input_beam.png")
 
     plt.figure()
     plt.imshow(abs(E_samples[10]))
+    plt.title("Intensity of output beam")
     plt.savefig("img/output_beam.png")
     
     plt.figure()
     E_out_fft = E_fft[N_samples]
     plt.imshow(abs(E_out_fft[zero_index-100:zero_index+100,zero_index-100:zero_index+100]))
+    plt.title("Abs of FFT of output beam")
     plt.savefig("img/fft_out_beam.png")
 
     plt.figure()
     for ii in np.arange(N_samples+1):
         plt.semilogy(k_vec,radial_mean_fft[ii],label=(str("%.2f" % z_samples[ii])+" m"))
-    plt.legend()
+    plt.legend(loc = 'right', fontsize = 'small')
+    plt.title("n(k) versus k")
+    plt.ylabel("n(k)")
+    plt.xlabel("k/(2$\pi$) (m$^{-1}$)")
     plt.savefig("img/azimuthal_fft_out_1.png")
+
+    plt.figure()
+    plt.plot(z_samples,norm_state,label = "State norm")
+    plt.plot(z_samples,norm_state[0]*np.exp(-alpha*z_samples),label = r'$\text{e}^{-\alpha z}')
+    plt.legend()
+    plt.title("State norm")
+    plt.savefig("img/state_norm.png")
 
 if __name__ == "__main__":
     main()
