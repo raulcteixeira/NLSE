@@ -9,10 +9,10 @@ PRECISION_REAL = np.float32
 
 
 N = 2048
-n2 = -8e-10
-k_max = 2*np.pi*2e3 # maximum k vector of the beam profile
+n2 = -6e-10
+k_max = 2*np.pi*3e3 # maximum k vector of the beam profile
 #waist = 2.23e-3
-window = 8 * 2*np.pi/k_max
+window = 12 * 2*np.pi/k_max
 puiss = 1.0
 Isat = 1e8  # saturation intensity in W/m^2
 L = 400e-3
