@@ -9,17 +9,17 @@ PRECISION_REAL = np.float32
 
 
 N = 2048
-n2 = -6e-10
+n2 = -3e-10
 k_max = 2*np.pi*3e3 # maximum k vector of the beam profile
 #waist = 2.23e-3
 window = 12 * 2*np.pi/k_max
 puiss = 1.0
 Isat = 1e8  # saturation intensity in W/m^2
-L = 400e-3
+L = 1600e-3
 alpha = 2
 
 # averaging over several realizations
-N_real = 100
+N_real = 40
 
 def main():
     simu = NLSE(
@@ -34,7 +34,7 @@ def main():
         Isat=Isat,
         backend="GPU",
     )
-    simu.delta_z = 0.1e-4
+    simu.delta_z = 0.2e-4
 
     # parameters for callback
     N_samples = 10
@@ -123,12 +123,6 @@ def main():
     norm_state = norm_state/norm_state[0]
     fft_average = fft_average/N_real
 
-    sum_n_k = np.sum(radial_mean_fft,1)
-    kin_energy = np.sum(radial_mean_fft*k_vec**2,1)/sum_n_k
-
-    #normalize to the norm of beam
-    radial_mean_fft = np.transpose(np.transpose(radial_mean_fft)/norm_state)
-
     #k_r = np.arange(len(nr))*k_step
     k_max_plot = 200*k_max
     plot_index = int(k_max_plot/k_step)
@@ -148,7 +142,7 @@ def main():
     plt.loglog(k_vec[in_min:in_max],1e24*(k_vec[in_min:in_max])**exponent,linestyle='--',label = r'1/k$^2$')
     plt.legend(loc = 'right', fontsize = 'small')
     fft_max = max(radial_mean_fft[0])
-    plt.ylim([1e-6*fft_max,2*fft_max])
+    plt.ylim([1e-7*fft_max,2*fft_max])
     plt.title("n(k) versus k")
     plt.ylabel("n(k)")
     plt.xlabel("k/(2$\pi$) (m$^{-1}$)")
@@ -177,7 +171,7 @@ def main():
     plt.figure()
     plt.imshow(np.angle(E_samples[N_samples]))
     plt.title("Phase of output beam (1 realization)")
-    plt.savefig("img/phase_output_beam.png")
+    plt.savefig("img/output_beam_phase.png")
     
     plt.figure()
     E_out_fft = E_fft[N_samples]
@@ -198,16 +192,8 @@ def main():
     plt.plot(z_samples,norm_state,label = "State norm")
     plt.plot(z_samples,norm_state[0]*np.exp(-alpha*z_samples),label = r'$\text{e}^{-\alpha z}')
     plt.legend()
-    plt.xlabel("z(m)")
     plt.title("State norm")
     plt.savefig("img/state_norm.png")
-
-    plt.figure()
-    plt.plot(z_samples,kin_energy,label = "")
-    plt.legend()
-    plt.title("Average kinetic energy (arb. units)")
-    plt.xlabel("z(m)")
-    plt.savefig("img/kinetic_energy.png")
 
 if __name__ == "__main__":
     main()
