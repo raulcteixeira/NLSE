@@ -190,9 +190,8 @@ def main():
     plt.savefig("img/azimuthal_fft_out_resc.png")
 
     plt.figure()
-    E_in_fft = E_fft[0]
-    plt.imshow(abs(E_in_fft[zero_index-100:zero_index+100,zero_index-100:zero_index+100])**2)
-    plt.title("zoom of n(k) vectoriel of input beam (averaged)")
+    plt.imshow(abs(E_0_fft[zero_index-100:zero_index+100,zero_index-100:zero_index+100])**2)
+    plt.title("zoom of n(k) vectoriel of input beam")
     plt.savefig("img/fft_input_beam.png")
 
     plt.figure()

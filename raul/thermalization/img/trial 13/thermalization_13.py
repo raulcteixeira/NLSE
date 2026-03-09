@@ -9,13 +9,13 @@ PRECISION_REAL = np.float32
 
 
 N = 2048
-n2 = -0.6e-9
+n2 = -1e-9
 k_max = 2*np.pi*3e3 # maximum k vector of the beam profile
 #waist = 2.23e-3
-window = 24 * 2*np.pi/k_max
+window = 12 * 2*np.pi/k_max
 puiss = 1.0
 Isat = 1e8  # saturation intensity in W/m^2
-L = 200e-3
+L = 400e-3
 alpha = 0
 
 # averaging over several realizations
@@ -87,15 +87,11 @@ def main():
     for jj in np.arange(N_real):
         print(jj+1)
         #E_0_fft = np.heaviside(k_max**2-kXX**2-kYY**2,1)*np.exp(1j*np.random.uniform(0,2*np.pi,[simu.NX,simu.NX]))
-        E_0_fft_in = np.exp(-(kXX**2+kYY**2)/k_max**2)*np.exp(1j*np.random.uniform(0,2*np.pi,[simu.NX,simu.NX]))
-        # Gaussian envelope in real space to avoid touching the boundaries
-        E_0_envelope = np.exp(-((x - zero_index)**2 + (y - zero_index)**2)/zero_index**2)
-        E_0 = np.fft.fftshift(np.fft.ifft2(np.fft.ifftshift(E_0_fft_in)))
-        E_0 = (E_0*E_0_envelope).astype(
+        E_0_fft = np.exp(-(kXX**2+kYY**2)/k_max**2)*np.exp(1j*np.random.uniform(0,2*np.pi,[simu.NX,simu.NX]))
+
+        E_0 = np.fft.fftshift(np.fft.ifft2(np.fft.ifftshift(E_0_fft))).astype(
             PRECISION_COMPLEX
         )
-
-        E_0_fft = np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(E_0)))
 
         E_0_normalized,_ = simu._prepare_output_array(E_0,True) 
         E_samples[0] = E_0_normalized.get()
@@ -157,7 +153,7 @@ def main():
     plt.loglog(k_vec[in_min:in_max],1e24*(k_vec[in_min:in_max])**exponent,linestyle='--',label = r'1/k$^2$')
     plt.legend(loc = 'right', fontsize = 'small')
     fft_max = max(radial_mean_fft[0])
-    plt.ylim([2e-8*fft_max,2*fft_max])
+    plt.ylim([2e-6*fft_max,2*fft_max])
     plt.title("n(k) versus k")
     plt.ylabel("n(k)")
     plt.xlabel("k/(2$\pi$) (m$^{-1}$)")
@@ -168,21 +164,11 @@ def main():
     beta = 0.5
     dimension = 2
     alph = dimension*beta
-    for ii in np.arange(N_samples)+1:
+    for ii in np.arange(N_samples+1):
         resc_k_vec = k_vec*(z_samples[ii]/z_samples[1])**beta
         resc_radial_mean_fft = radial_mean_fft/(z_samples[ii]/z_samples[1])**alph
         plt.loglog(resc_k_vec[0:plot_index],resc_radial_mean_fft[ii,0:plot_index],label=(str("%.2f" % z_samples[ii])+" m"))
-    
-    exponent = -3
-    in_min = 8
-    in_max = 40
-    plt.loglog(k_vec[in_min:in_max],1e29*(k_vec[in_min:in_max])**exponent,linestyle='--',label = r'1/k$^3$')
-    exponent = -2
-    in_min = 20
-    in_max = 100
-    plt.loglog(k_vec[in_min:in_max],1e24*(k_vec[in_min:in_max])**exponent,linestyle='--',label = r'1/k$^2$')
-    
-    plt.ylim([2e-8*fft_max/(z_samples[N_samples]/z_samples[1])**alph,2*fft_max])
+    plt.ylim([2e-6*fft_max,2*fft_max])
     plt.legend(loc = 'right', fontsize = 'small')
     plt.title("n(k) versus k, rescaled")
     plt.ylabel("$n(k) / (z/z_{ref})^{\\alpha \pi}$")
@@ -190,9 +176,8 @@ def main():
     plt.savefig("img/azimuthal_fft_out_resc.png")
 
     plt.figure()
-    E_in_fft = E_fft[0]
-    plt.imshow(abs(E_in_fft[zero_index-100:zero_index+100,zero_index-100:zero_index+100])**2)
-    plt.title("zoom of n(k) vectoriel of input beam (averaged)")
+    plt.imshow(abs(E_0_fft[zero_index-100:zero_index+100,zero_index-100:zero_index+100])**2)
+    plt.title("zoom of n(k) vectoriel of input beam")
     plt.savefig("img/fft_input_beam.png")
 
     plt.figure()
