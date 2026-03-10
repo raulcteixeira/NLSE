@@ -34,7 +34,7 @@ def main():
         Isat=Isat,
         backend="GPU",
     )
-    simu.delta_z = 0.1e-4
+    simu.delta_z = 0.2e-4
 
     # parameters for callback
     N_samples = 10
@@ -45,8 +45,14 @@ def main():
     #vector for keeping track of state norm
     norm_state = np.zeros(N_samples + 1)
 
+    zero_index = simu.NX//2
+
+    # cutoff on size of sample to make fft only of center, of almost constant intensity
+    size_fft = simu.NX//2
+    window_fft = window*size_fft/simu.NX
+    zero_index_fft = int(size_fft/2)
     #array for average of final state fft
-    fft_average = np.zeros([simu.NY,simu.NX])
+    fft_average = np.zeros([size_fft,size_fft])
 
     N_steps = int(round(L/simu.delta_z))
     save_every = N_steps//N_samples
@@ -68,14 +74,19 @@ def main():
     
     # Parameters for calculating initial state
     k_step = 2*np.pi/window
-    zero_index = int(simu.NX/2)
     kX = np.linspace(-k_step*zero_index,k_step*(zero_index-1),simu.NX)
     kY = kX
     kXX,kYY = np.meshgrid(kX,kY)
-
-    # vectors to help in radial average of n(k)
     y, x = np.indices(kXX.shape)
-    kk = np.sqrt((x - zero_index)**2 + (y - zero_index)**2)
+
+    # Parameters for radial averaging afterwards (with cropped size of matrix)
+    k_step = 2*np.pi/window_fft
+    kX_crop = np.linspace(-k_step*zero_index_fft,k_step*(zero_index_fft-1),size_fft)
+    kY_crop = kX_crop
+    kXXc,kYYc = np.meshgrid(kX_crop,kY_crop)
+
+    yc, xc = np.indices(kXXc.shape)
+    kk = np.sqrt((xc - zero_index_fft)**2 + (yc - zero_index_fft)**2)
     kk = kk.astype(np.int32)  # bin by integer radius
     nk = np.bincount(kk.ravel())
     k_size = nk.shape[0]
@@ -105,8 +116,8 @@ def main():
         #A_plot = simu.out_field(E_0, L, verbose=True, plot=True, precision="single")
 
         #obtain frequency content and norm of fields
-        E_fft = np.zeros([N_samples+1,A_plot.shape[0],A_plot.shape[1]])
-        E_fft[:] = np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(E_samples[:]))).astype(
+        E_fft = np.zeros([N_samples+1,size_fft,size_fft])
+        E_fft[:] = np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(E_samples[:,(size_fft//2):(3*size_fft//2),(size_fft//2):(3*size_fft//2)]))).astype(
             PRECISION_COMPLEX
         )
 
@@ -191,7 +202,7 @@ def main():
 
     plt.figure()
     E_in_fft = E_fft[0]
-    plt.imshow(abs(E_in_fft[zero_index-100:zero_index+100,zero_index-100:zero_index+100])**2)
+    plt.imshow(abs(E_in_fft[zero_index_fft-100:zero_index_fft+100,zero_index_fft-100:zero_index_fft+100])**2)
     plt.title("zoom of n(k) vectoriel of input beam (averaged)")
     plt.savefig("img/fft_input_beam.png")
 
@@ -217,7 +228,7 @@ def main():
     
     plt.figure()
     E_out_fft = E_fft[N_samples]
-    plt.imshow(fft_average[zero_index-100:zero_index+100,zero_index-100:zero_index+100])
+    plt.imshow(fft_average[zero_index_fft-100:zero_index_fft+100,zero_index_fft-100:zero_index_fft+100])
     plt.title("zoom of n(k) vectoriel of output beam (averaged)")
     plt.savefig("img/fft_out_beam.png")
 
