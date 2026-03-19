@@ -11,16 +11,17 @@ PRECISION_REAL = np.float32
 
 N = 2048
 n2 = -0.6e-9
+k_therm = 2*np.pi*10e3 # average k-vector of nontruncated thermal distribution
 k_max = 2*np.pi*3e3 # maximum k vector of the beam profile
 #waist = 2.23e-3
 window = 24 * 2*np.pi/k_max
 puiss = 1.0
 Isat = 1e8  # saturation intensity in W/m^2
-L = 300e-3
+L = 150e-3
 alpha = 0
 
 # averaging over several realizations
-N_real = 100
+N_real = 50
 
 def main():
     simu = NLSE(
@@ -38,7 +39,7 @@ def main():
     simu.delta_z = 0.1e-4
 
     # parameters for callback
-    N_samples = 10
+    N_samples = 5
     z_samples = np.zeros(N_samples+1) # +1 to account for the 0th step
     z_samples[0] = 0
     E_samples = np.zeros((N_samples+1, N, N), dtype=np.complex64)
@@ -104,7 +105,12 @@ def main():
         E_0_fft_phase = np.exp(1j*np.random.uniform(0,2*np.pi,[simu.NX,simu.NX]))
         sigma = 0.5
         E_0_fft_phase = ndimage.gaussian_filter(E_0_fft_phase, sigma = sigma)
-        E_0_fft_in = np.exp(-(kXX**2+kYY**2)/k_max**2)*E_0_fft_phase
+        E_0_fft_non_trunc = np.exp(-(kXX**2+kYY**2)/k_therm**2)
+        E_0_fft_trunc = E_0_fft_non_trunc*np.heaviside(k_max**2-kXX**2-kYY**2,1)
+        E_0_fft_in = E_0_fft_trunc*E_0_fft_phase
+
+        
+
         E_0 = np.fft.fftshift(np.fft.ifft2(np.fft.ifftshift(E_0_fft_in))).astype(
             PRECISION_COMPLEX
         )
@@ -171,25 +177,60 @@ def main():
     np.save("img/k_vec",k_vec)
 
     # plots
+
+    # plot of non truncated beam - illustration purposes only
+
+    E_0_non_trunc = np.fft.fftshift(np.fft.ifft2(np.fft.ifftshift(E_0_fft_non_trunc*E_0_fft_phase))).astype(
+        PRECISION_COMPLEX
+    )
+
+    plt.figure()
+    plt.imshow(abs(E_0_non_trunc)**2)
+    plt.title("Intensity of input beam before truncation")
+    plt.savefig("img/input_beam_non_truncated.png")
+
+    # plot of truncation - illustration purposes only
+    E_0_fft_non_trunc_1D = np.exp(-k_vec**2/k_therm**2)
+    E_0_fft_trunc_1D = E_0_fft_non_trunc_1D*np.heaviside(k_max-k_vec,1)
+
+    plt.figure()
+    plt.plot(k_vec/(2e6*np.pi),E_0_fft_non_trunc_1D,linestyle='--', linewidth=3,label="Initial thermal distribution")
+    plt.plot(k_vec/(2e6*np.pi),E_0_fft_trunc_1D,linestyle='-',linewidth=3,label="Initial thermal distribution")
+    plt.title("n(k) versus k",fontsize = 14)
+    plt.ylabel("n(k)/n(0)",fontsize = 14)
+    plt.xlabel("k/(2$\pi$) ($\mu$m$^{-1}$)",fontsize = 14)
+    #plt.ticklabel_format(style='sci')
+    plt.xticks([0, 1e-2, 2e-2, 3e-2], ['0','10$^{-2}$', '2.10$^{-2}$', '3.10$^{-2}$'], fontsize=14)
+    plt.yticks(fontsize=14)
+    plt.legend(loc = 'upper right', fontsize = 14)
+    plt.xlim([-5e-3,3.7e-2])
+    plt.tight_layout()
+    plt.savefig("img/truncation.png")
+
+
+    # plotting radial_mean_fft
     plt.figure()
     for ii in np.arange(N_samples+1):
-        plt.loglog(k_vec[0:plot_index],radial_mean_fft[ii,0:plot_index],label=(str("%.2f" % z_samples[ii])+" m"))
+        plt.loglog(k_vec[0:plot_index]/(2*np.pi),radial_mean_fft[ii,0:plot_index], linewidth=3,label=(str("%.2f" % z_samples[ii])+" m"))
 
     exponent = -3
     in_min = 8
     in_max = 40
-    plt.loglog(k_vec[in_min:in_max],1e29*(k_vec[in_min:in_max])**exponent,linestyle='--',label = r'1/k$^3$')
-    exponent = -2
-    in_min = 20
-    in_max = 100
-    plt.loglog(k_vec[in_min:in_max],1e24*(k_vec[in_min:in_max])**exponent,linestyle='--',label = r'1/k$^2$')
-    plt.legend(loc = 'right', fontsize = 'small')
+    plt.loglog(k_vec[in_min:in_max]/(2*np.pi),3e29*(k_vec[in_min:in_max])**exponent,linestyle='--',label = r'1/k$^3$')
+    # exponent = -2
+    # in_min = 20
+    # in_max = 100
+    # plt.loglog(k_vec[in_min:in_max],1e24*(k_vec[in_min:in_max])**exponent,linestyle='--',label = r'1/k$^2$')
+    plt.legend(loc = 'upper right', fontsize = 14)
     fft_max = max(radial_mean_fft[0])
-    plt.ylim([2e-5*fft_max,2*fft_max])
-    plt.xlim([1e3,4e5])
-    plt.title("n(k) versus k")
-    plt.ylabel("n(k)")
-    plt.xlabel("k/(2$\pi$) (m$^{-1}$)")
+    plt.ylim([2e-5*fft_max,3*fft_max])
+    plt.xlim([1e3/(2*np.pi),8e5/(2*np.pi)])
+    plt.title("n(k) versus k",fontsize = 14)
+    plt.ylabel("n(k) (a.u.)",fontsize = 14)
+    plt.xlabel("k/(2$\pi$) (m$^{-1}$)",fontsize = 14)
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+    plt.tight_layout()
     plt.savefig("img/azimuthal_fft_out.png")
 
     # plotting rescaled radial_mean_fft
@@ -205,11 +246,11 @@ def main():
     exponent = -3
     in_min = 8
     in_max = 40
-    plt.loglog(k_vec[in_min:in_max],1e29*(k_vec[in_min:in_max])**exponent,linestyle='--',label = r'1/k$^3$')
-    exponent = -2
-    in_min = 20
-    in_max = 100
-    plt.loglog(k_vec[in_min:in_max],1e24*(k_vec[in_min:in_max])**exponent,linestyle='--',label = r'1/k$^2$')
+    plt.loglog(k_vec[in_min:in_max]*3,1e29*(k_vec[in_min:in_max])**exponent,linestyle='--',label = r'1/k$^3$')
+    # exponent = -2
+    # in_min = 20
+    # in_max = 100
+    # plt.loglog(k_vec[in_min:in_max],1e24*(k_vec[in_min:in_max])**exponent,linestyle='--',label = r'1/k$^2$')
     
     plt.ylim([2e-5*fft_max/(z_samples[N_samples]/z_samples[1])**alph,2*fft_max])
     plt.xlim([1e3,1e6])
@@ -227,7 +268,7 @@ def main():
 
     plt.figure()
     plt.imshow(abs(E_0)**2)
-    plt.title("Intensity of input beam (1 realization)")
+    plt.title("Intensity of input beam")
     plt.savefig("img/input_beam.png")
 
     plt.figure()
