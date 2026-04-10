@@ -10,7 +10,7 @@ PRECISION_REAL = np.float32
 
 
 N = 2048
-n2 = -0.6e-9
+n2 = -1.0e-9
 k_therm = 2*np.pi*10e3 # average k-vector of nontruncated thermal distribution
 k_max = 2*np.pi*3e3 # maximum k vector of the beam profile
 #waist = 2.23e-3
@@ -21,7 +21,7 @@ L = 150e-3
 alpha = 0
 
 # averaging over several realizations
-N_real = 50
+N_real = 100
 
 def main():
     simu = NLSE(
@@ -36,10 +36,10 @@ def main():
         Isat=Isat,
         backend="GPU",
     )
-    simu.delta_z = 0.1e-4
+    simu.delta_z = 0.2e-4
 
     # parameters for callback
-    N_samples = 5
+    N_samples = 10
     z_samples = np.zeros(N_samples+1) # +1 to account for the 0th step
     z_samples[0] = 0
     E_samples = np.zeros((N_samples+1, N, N), dtype=np.complex64)
@@ -103,18 +103,18 @@ def main():
         ##### initial state as Gaussian distribution of k with random phase in each k
         # E_0_fft = np.heaviside(k_max**2-kXX**2-kYY**2,1)*np.exp(1j*np.random.uniform(0,2*np.pi,[simu.NX,simu.NX]))
         E_0_fft_phase = np.exp(1j*np.random.uniform(0,2*np.pi,[simu.NX,simu.NX]))
-        sigma = 0.5
-        E_0_fft_phase = ndimage.gaussian_filter(E_0_fft_phase, sigma = sigma)
-        E_0_fft_non_trunc = np.exp(-(kXX**2+kYY**2)/k_therm**2)
-        E_0_fft_trunc = E_0_fft_non_trunc*np.heaviside(k_max**2-kXX**2-kYY**2,1)
-        E_0_fft_in = E_0_fft_trunc*E_0_fft_phase
+        sigma = 0.6
+        E_0_fft_phase = np.exp(1j*np.angle(ndimage.gaussian_filter(E_0_fft_phase, sigma = sigma)))
+        E_0_fft_non_trunc = np.exp(-(kXX**2+kYY**2)/k_max**2)*E_0_fft_phase
+        #E_0_fft_trunc = E_0_fft_non_trunc*np.heaviside(k_max**2-kXX**2-kYY**2,1)
+        E_0_fft_in = E_0_fft_non_trunc
 
         
 
         E_0 = np.fft.fftshift(np.fft.ifft2(np.fft.ifftshift(E_0_fft_in))).astype(
             PRECISION_COMPLEX
         )
-        
+
         ##### Gaussian envelope in real space to avoid touching the boundaries
         #E_0_envelope = np.exp(-((x - zero_index)**2 + (y - zero_index)**2)/zero_index**2)
 
@@ -194,8 +194,8 @@ def main():
     E_0_fft_trunc_1D = E_0_fft_non_trunc_1D*np.heaviside(k_max-k_vec,1)
 
     plt.figure()
-    plt.plot(k_vec/(2e6*np.pi),E_0_fft_non_trunc_1D,linestyle='--', linewidth=3,label="Initial thermal distribution")
-    plt.plot(k_vec/(2e6*np.pi),E_0_fft_trunc_1D,linestyle='-',linewidth=3,label="Initial thermal distribution")
+    plt.plot(k_vec/(2e6*np.pi),E_0_fft_non_trunc_1D,linestyle='--', linewidth=1,label="Initial thermal distribution")
+    plt.plot(k_vec/(2e6*np.pi),E_0_fft_trunc_1D,linestyle='-',linewidth=1,label="Initial thermal distribution")
     plt.title("n(k) versus k",fontsize = 14)
     plt.ylabel("n(k)/n(0)",fontsize = 14)
     plt.xlabel("k/(2$\pi$) ($\mu$m$^{-1}$)",fontsize = 14)
@@ -261,8 +261,8 @@ def main():
     plt.savefig("img/azimuthal_fft_out_resc.png")
 
     plt.figure()
-    E_in_fft = E_fft[0]
-    plt.imshow(abs(E_in_fft[zero_index_fft-100:zero_index_fft+100,zero_index_fft-100:zero_index_fft+100])**2)
+    E_in_fft = np.fft.fftshift(np.fft.fft2(E_samples[0]))
+    plt.imshow(abs(E_in_fft[(simu.NX//2-200):(simu.NX//2+200),(simu.NX//2-200):(simu.NX//2+200)])**2)
     plt.title("zoom of n(k) vectoriel of input beam (averaged)")
     plt.savefig("img/fft_input_beam.png")
 
