@@ -8,37 +8,21 @@ from NLSE import NLSE
 PRECISION_COMPLEX = np.complex64
 PRECISION_REAL = np.float32
 
-## We will implement now the real procedure we do in the experiment
 
 N = 2048
 n2 = -0.6e-9
 k_max = 2*np.pi*3e3 # maximum k vector of the beam profile
-waist = 2.27e-3
-#window = 24 * 2*np.pi/k_max
-window = 2*waist
-puiss = 0.5
+#waist = 2.23e-3
+window = 24 * 2*np.pi/k_max
+puiss = 1.0
 Isat = 1e8  # saturation intensity in W/m^2
-z_rel_max = 30 # maximum propagation distance in units of nonlinear length, to determine L
+L = 300e-3
 alpha = 0
-lambda_0 = 780e-9
-k0 = 2*np.pi/lambda_0
 
 # averaging over several realizations
-N_real = 20
+N_real = 100
 
 def main():
-
-    I_center = 2*puiss/(np.pi*waist**2)
-    Delta_n = np.abs(n2)*I_center
-    healing_length = 1/k0/(2*Delta_n)**0.5
-    print("healing length = ", healing_length)
-
-    z_NL = 1/k0/Delta_n
-    print("nonlinear length = ", z_NL)
-
-    L = z_rel_max*z_NL
-    print("propagation distance = ", L)
-
     simu = NLSE(
         alpha,
         puiss,
@@ -90,25 +74,14 @@ def main():
             z_samples[i//save_every+1] = z
     
     # Parameters for calculating initial state
-    X_vec = np.linspace(-window/2, window/2, simu.NX)
-    Y_vec = np.linspace(-window/2, window/2, simu.NY)
-    X,Y = np.meshgrid(X_vec,Y_vec)
-    y, x = np.indices(X.shape)
-    r_step = window/simu.NX
-
     k_step = 2*np.pi/window
-    KX_vec = np.linspace(-k_step*zero_index,k_step*(zero_index-1),simu.NX)
-    KY_vec = KX_vec
-    kXX,kYY = np.meshgrid(KX_vec,KY_vec)
+    kX = np.linspace(-k_step*zero_index,k_step*(zero_index-1),simu.NX)
+    kY = kX
+    kXX,kYY = np.meshgrid(kX,kY)
+    y, x = np.indices(kXX.shape)
 
-    # Parameters for radial r averaging afterwards
-    rr = np.sqrt((x - zero_index)**2 + (y - zero_index)**2)
-    rr = rr.astype(np.int32)  # bin by integer radius
-    nr = np.bincount(rr.ravel())
-    r_size = nr.shape[0]
-    r_vec = np.linspace(0, (r_size-1)*r_step, r_size)
-
-    # Parameters for radial k averaging afterwards (with cropped size of matrix)
+    # Parameters for radial averaging afterwards (with cropped size of matrix)
+    k_step = 2*np.pi/window_fft
     kX_crop = np.linspace(-k_step*zero_index_fft,k_step*(zero_index_fft-1),size_fft)
     kY_crop = kX_crop
     kXXc,kYYc = np.meshgrid(kX_crop,kY_crop)
@@ -123,32 +96,34 @@ def main():
     #vector to keep averaged n(k)
     radial_mean_fft = np.zeros([N_samples+1,nk.shape[0]])
 
-    Int_no_crop = np.zeros_like(X)
-    Int_0 = Int_no_crop
-    Abs_E_0_fft = Int_no_crop
-    Abs_E_0_fft_non_crop = Int_no_crop
-
     for jj in np.arange(N_real):
         print(jj+1)
 
         ##### initial state as Gaussian distribution of k with random phase in each k
         # E_0_fft = np.heaviside(k_max**2-kXX**2-kYY**2,1)*np.exp(1j*np.random.uniform(0,2*np.pi,[simu.NX,simu.NX]))
-        E_0_phase = np.exp(1j*np.random.uniform(0,2*np.pi,[simu.NX,simu.NX]))
-        sigma_manip = 5
-        # rescaling of sigma used in SLM (sigma_manip) of pixel size = 8um to the same length scale at the simulation grid
-        sigma = sigma_manip*8e-6/(window/simu.NX)
-        E_0_phase = ndimage.gaussian_filter(E_0_phase, sigma = sigma)
-        E_0_in_no_crop = np.exp(-(X**2+Y**2)/waist**2)*np.exp(1j*np.angle(E_0_phase))
-        E_0_in_fft_no_crop = np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(E_0_in_no_crop)))
-        E_0_in_fft = E_0_in_fft_no_crop*np.heaviside(k_max**2-kXX**2-kYY**2,1)
-        E_0 = np.fft.fftshift(np.fft.ifft2(np.fft.ifftshift(E_0_in_fft))).astype(
+        E_0_fft_phase = np.exp(1j*np.random.uniform(0,2*np.pi,[simu.NX,simu.NX]))
+        sigma = 0.5
+        E_0_fft_phase = ndimage.gaussian_filter(E_0_fft_phase, sigma = sigma)
+        E_0_fft_in = np.exp(-(kXX**2+kYY**2)/k_max**2)*E_0_fft_phase
+        E_0 = np.fft.fftshift(np.fft.ifft2(np.fft.ifftshift(E_0_fft_in))).astype(
             PRECISION_COMPLEX
-        )    
+        )
+        
+        ##### Gaussian envelope in real space to avoid touching the boundaries
+        #E_0_envelope = np.exp(-((x - zero_index)**2 + (y - zero_index)**2)/zero_index**2)
 
-        Int_no_crop = (jj*Int_no_crop + abs(E_0_in_no_crop)**2)/(jj+1)
-        Int_0 = (jj*Int_0 + abs(E_0)**2)/(jj+1)
-        Abs_E_0_fft_non_crop = (jj*Abs_E_0_fft_non_crop + abs(E_0_in_fft_no_crop)**2)/(jj+1)
-        Abs_E_0_fft = (jj*Abs_E_0_fft + abs(E_0_in_fft)**2)/(jj+1)
+        ##### initial state as phase speckle with a Gaussian envelope
+        # phase = np.random.random((simu.NX,simu.NY))
+        # sigma = simu.NX*(2*np.pi/k_max)/window
+        # phase = ndimage.gaussian_filter(phase, sigma = sigma)
+        # phase -= np.min(phase)
+        # phase /=np.max(phase)
+        # phase *= 10*np.pi
+        # E_0 = np.exp(1j*phase)
+        # E_0 = (E_0*E_0_envelope).astype(
+        #     PRECISION_COMPLEX
+        # )
+        # E_0_fft = np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(E_0)))
 
         E_0_normalized,_ = simu._prepare_output_array(E_0,True) 
         E_samples[0] = E_0_normalized.get()
@@ -169,29 +144,12 @@ def main():
         E_fft_abs = abs(E_fft)
         fft_average = fft_average + E_fft_abs[N_samples]**2
 
-        # Sum values in each radial bin in k space, to obtain n(k) as a function of k
+        # Sum values in each radial bin
         for ii in np.arange(N_samples+1):
             E_out_fft_sqr = E_fft_abs[ii]**2
             tbin = np.bincount(kk.ravel(), E_out_fft_sqr.ravel())
             # accumulate in the radial_mean_fft
             radial_mean_fft[ii] = tbin / nk + radial_mean_fft[ii]
-
-    # Sum values in each radial bin in r space, to obtain azimutally averaged input beam profile
-    # before and after cropping in Fourier space, to check that cropping does not affect the 
-    # averaged beam profile in real space
-    Int_no_crop_vec = np.bincount(rr.ravel(), Int_no_crop.ravel())
-    Sum_int_no_crop = np.sum(Int_no_crop_vec)*r_step**2
-    Int_no_crop_radial_mean = Int_no_crop_vec/nr/Sum_int_no_crop # normalize to norm of beam
-    Int_0_vec = np.bincount(rr.ravel(), Int_0.ravel())
-    Sum_int_0 = np.sum(Int_0_vec)*r_step**2
-    Int_0_radial_mean = Int_0_vec/nr/Sum_int_0 # normalize to norm of beam
-
-    Abs_E_0_fft_non_crop_small = Abs_E_0_fft_non_crop[zero_index-size_fft//2:zero_index+size_fft//2,zero_index-size_fft//2:zero_index+size_fft//2]
-    Sum_abs_E_0_non_crop_fft = np.sum(Abs_E_0_fft_non_crop_small)*k_step**2
-    Abs_E_0_fft_non_crop_vec = np.bincount(kk.ravel(), Abs_E_0_fft_non_crop_small.ravel())/nk/Sum_abs_E_0_non_crop_fft # normalize to norm of beam
-    Abs_E_0_fft_small = Abs_E_0_fft[zero_index-size_fft//2:zero_index+size_fft//2,zero_index-size_fft//2:zero_index+size_fft//2]
-    Abs_E_0_fft_vec = np.bincount(kk.ravel(), Abs_E_0_fft_small.ravel())/nk/Sum_abs_E_0_non_crop_fft # normalize to norm of beam
-    
 
     radial_mean_fft = radial_mean_fft/N_real
     norm_state = norm_state/norm_state[0]
@@ -215,23 +173,23 @@ def main():
     # plots
     plt.figure()
     for ii in np.arange(N_samples+1):
-        plt.loglog(k_vec[0:plot_index]*healing_length,radial_mean_fft[ii,0:plot_index],label=(str("%.f" % (z_samples[ii]/z_NL))+" $z_{NL}$"))
+        plt.loglog(k_vec[0:plot_index],radial_mean_fft[ii,0:plot_index],label=(str("%.2f" % z_samples[ii])+" m"))
 
     exponent = -3
     in_min = 8
     in_max = 40
-    plt.loglog(k_vec[in_min:in_max]*healing_length,1e29*(k_vec[in_min:in_max])**exponent,linestyle='--',label = r'1/k$^3$')
-    # exponent = -2
-    # in_min = 20
-    # in_max = 100
-    # plt.loglog(k_vec[in_min:in_max]*healing_length,1e24*(k_vec[in_min:in_max])**exponent,linestyle='--',label = r'1/k$^2$')
+    plt.loglog(k_vec[in_min:in_max],1e29*(k_vec[in_min:in_max])**exponent,linestyle='--',label = r'1/k$^3$')
+    exponent = -2
+    in_min = 20
+    in_max = 100
+    plt.loglog(k_vec[in_min:in_max],1e24*(k_vec[in_min:in_max])**exponent,linestyle='--',label = r'1/k$^2$')
     plt.legend(loc = 'right', fontsize = 'small')
     fft_max = max(radial_mean_fft[0])
     plt.ylim([2e-5*fft_max,2*fft_max])
-    plt.xlim([1e3*healing_length,4e5*healing_length])
+    plt.xlim([1e3,4e5])
     plt.title("n(k) versus k")
     plt.ylabel("n(k)")
-    plt.xlabel("k/(2$\pi$) ($\\xi^{-1}$)")
+    plt.xlabel("k/(2$\pi$) (m$^{-1}$)")
     plt.savefig("img/azimuthal_fft_out.png")
 
     # plotting rescaled radial_mean_fft
@@ -242,16 +200,16 @@ def main():
     for ii in np.arange(N_samples)+1:
         resc_k_vec = k_vec*(z_samples[ii]/z_samples[1])**beta
         resc_radial_mean_fft = radial_mean_fft/(z_samples[ii]/z_samples[1])**alph
-        plt.loglog(resc_k_vec[0:plot_index],resc_radial_mean_fft[ii,0:plot_index],label=(str("%.f" % (z_samples[ii]/z_NL))+" $z_{NL}$"))
+        plt.loglog(resc_k_vec[0:plot_index],resc_radial_mean_fft[ii,0:plot_index],label=(str("%.2f" % z_samples[ii])+" m"))
     
     exponent = -3
     in_min = 8
     in_max = 40
-    plt.loglog(k_vec[in_min:in_max],3e29*(k_vec[in_min:in_max])**exponent,linestyle='--',label = r'1/k$^3$')
-    #exponent = -2
-    #in_min = 20
-    #in_max = 100
-    #plt.loglog(k_vec[in_min:in_max],3e24*(k_vec[in_min:in_max])**exponent,linestyle='--',label = r'1/k$^2$')
+    plt.loglog(k_vec[in_min:in_max],1e29*(k_vec[in_min:in_max])**exponent,linestyle='--',label = r'1/k$^3$')
+    exponent = -2
+    in_min = 20
+    in_max = 100
+    plt.loglog(k_vec[in_min:in_max],1e24*(k_vec[in_min:in_max])**exponent,linestyle='--',label = r'1/k$^2$')
     
     plt.ylim([2e-5*fft_max/(z_samples[N_samples]/z_samples[1])**alph,2*fft_max])
     plt.xlim([1e3,1e6])
@@ -268,38 +226,7 @@ def main():
     plt.savefig("img/fft_input_beam.png")
 
     plt.figure()
-    plt.plot(k_vec[0:100]*healing_length,Abs_E_0_fft_non_crop_vec[0:100],label = "cropped in Fourier space")
-    plt.plot(k_vec[0:100]*healing_length,Abs_E_0_fft_vec[0:100],label = "not cropped in Fourier space")
-    plt.legend()
-    plt.xlabel("k/(2$\pi$) ($\\xi^{-1}$)")
-    plt.ylabel("Azimuthal average of FFT of input beam (averaged)")
-    plt.title("FFT of whole input beam (averaged)")
-    plt.savefig("img/fft_input_beam_average.png")
-
-
-    plt.figure()
-    plt.imshow((Abs_E_0_fft_non_crop[zero_index-100:zero_index+100,zero_index-100:zero_index+100])**2)
-    plt.title("FFT of whole input beam before cropping in Fourier space (averaged)")
-    plt.savefig("img/fft_input_beam_whole_non_crop.png")
-
-    plt.figure()
-    plt.imshow((Abs_E_0_fft[zero_index-100:zero_index+100,zero_index-100:zero_index+100])**2)
-    plt.title("FFT of whole input beam (averaged)")
-    plt.savefig("img/fft_input_beam_whole.png")
-
-    plt.figure()
-    plt.plot(r_vec,Int_0_radial_mean,label = "cropped in Fourier space")
-    plt.plot(r_vec,Int_no_crop_radial_mean,label = "not cropped in Fourier space")
-    plt.legend()
-    plt.xlabel("r (m)")
-    plt.ylabel("Intensity normalized")
-    plt.title("Intensity of input beam (averaged)")
-    plt.savefig("img/input_beam_average.png")
-
-    Int_0_1 = abs(E_0)**2/np.max(abs(E_0)**2)
-
-    plt.figure()
-    plt.imshow(Int_0_1)
+    plt.imshow(abs(E_0)**2)
     plt.title("Intensity of input beam (1 realization)")
     plt.savefig("img/input_beam.png")
 
