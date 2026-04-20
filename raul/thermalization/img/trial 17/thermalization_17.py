@@ -12,19 +12,19 @@ PRECISION_REAL = np.float32
 
 N = 2048
 n2 = -0.6e-9
-k_max = 2*np.pi*1e4 # maximum k vector of the beam profile
+k_max = 2*np.pi*3e3 # maximum k vector of the beam profile
 waist = 2.27e-3
 #window = 24 * 2*np.pi/k_max
 window = 2*waist
 puiss = 0.5
 Isat = 1e8  # saturation intensity in W/m^2
-z_rel_max = 20 # maximum propagation distance in units of nonlinear length, to determine L
+z_rel_max = 30 # maximum propagation distance in units of nonlinear length, to determine L
 alpha = 0
 lambda_0 = 780e-9
 k0 = 2*np.pi/lambda_0
 
 # averaging over several realizations
-N_real = 50
+N_real = 100
 
 def main():
 
@@ -54,7 +54,7 @@ def main():
     simu.delta_z = 0.1e-4
 
     # parameters for callback
-    N_samples = 5
+    N_samples = 10
     z_samples = np.zeros(N_samples+1) # +1 to account for the 0th step
     z_samples[0] = 0
     E_samples = np.zeros((N_samples+1, N, N), dtype=np.complex64)
@@ -65,9 +65,9 @@ def main():
     zero_index = simu.NX//2
 
     # cutoff on size of sample to make fft only of center, of almost constant intensity
-    size_fft = 800 #simu.NX//2
+    size_fft = simu.NX//2
     window_fft = window*size_fft/simu.NX
-    zero_index_fft = int(size_fft/2)
+    zero_index_fft = int(size_fft/3)
     #array for average of final state fft
     fft_average = np.zeros([size_fft,size_fft])
 
@@ -134,7 +134,7 @@ def main():
         ##### initial state as Gaussian distribution of k with random phase in each k
         # E_0_fft = np.heaviside(k_max**2-kXX**2-kYY**2,1)*np.exp(1j*np.random.uniform(0,2*np.pi,[simu.NX,simu.NX]))
         E_0_phase = np.exp(1j*np.random.uniform(0,2*np.pi,[simu.NX,simu.NX]))
-        sigma_manip = 2
+        sigma_manip = 5
         # rescaling of sigma used in SLM (sigma_manip) of pixel size = 8um to the same length scale at the simulation grid
         sigma = sigma_manip*8e-6/(window/simu.NX)
         E_0_phase = ndimage.gaussian_filter(E_0_phase, sigma = sigma)
@@ -227,7 +227,7 @@ def main():
     # plt.loglog(k_vec[in_min:in_max]*healing_length,1e24*(k_vec[in_min:in_max])**exponent,linestyle='--',label = r'1/k$^2$')
     plt.legend(loc = 'right', fontsize = 'small')
     fft_max = max(radial_mean_fft[0])
-    plt.ylim([1e-5*fft_max,2*fft_max])
+    plt.ylim([2e-5*fft_max,2*fft_max])
     plt.xlim([1e3*healing_length,4e5*healing_length])
     plt.title("n(k) versus k")
     plt.ylabel("n(k)")
@@ -253,7 +253,7 @@ def main():
     #in_max = 100
     #plt.loglog(k_vec[in_min:in_max],3e24*(k_vec[in_min:in_max])**exponent,linestyle='--',label = r'1/k$^2$')
     
-    plt.ylim([1e-5*fft_max/(z_samples[N_samples]/z_samples[1])**alph,2*fft_max])
+    plt.ylim([2e-5*fft_max/(z_samples[N_samples]/z_samples[1])**alph,2*fft_max])
     plt.xlim([1e3,1e6])
     plt.legend(loc = 'right', fontsize = 'small')
     plt.title("n(k) versus k, rescaled")
